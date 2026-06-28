@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { AlertTriangle, ArrowRight, CheckCircle2, Edit3, Loader2, RefreshCcw, Sparkles } from 'lucide-react'
-import { createManualProduct, createPin, generateVariants, getSettings, getStylePresets, parseProduct, syncAccounts } from '../lib/api'
+import { createManualProduct, createPin, generateVariants, getSettings, getStylePresets, parseProduct, syncAccounts, syncBoards, updateSettings } from '../lib/api'
 
 const errorMessage = (error) => error.response?.data?.detail || error.message
 
@@ -21,7 +21,9 @@ function Home() {
   const [manual, setManual] = useState({ title: '', description_raw: '', price: '', shop_name: '', source_url: '' })
   const [manualImages, setManualImages] = useState('')
   const [postfastStatus, setPostfastStatus] = useState({ loading: true, accounts: [], error: '', hasKey: false, lastSynced: null })
+  const [boardStatus, setBoardStatus] = useState({ loading: false, boards: [], error: '', defaultBoardId: '', defaultSocialMediaId: '', lastSynced: null })
   const [syncingPostfast, setSyncingPostfast] = useState(false)
+  const [syncingBoards, setSyncingBoards] = useState(false)
 
   useEffect(() => {
     getStylePresets().then(({ data }) => setStyles(data.styles || [])).catch(() => {})
@@ -39,13 +41,21 @@ function Home() {
   }
 
   const accountLabel = (account) => account.displayName || account.platformUsername || account.username || account.name || account.id || 'Pinterest account'
+  const boardLabel = (board) => board.name || board.title || board.boardName || board.boardId || board.id || 'Pinterest board'
+  const boardId = (board) => board.boardId || board.id || board.board_id || ''
 
   const loadPostfastStatus = async ({ silent = false } = {}) => {
     setPostfastStatus((current) => ({ ...current, loading: true, error: '' }))
     try {
       const { data: settings } = await getSettings()
+      setBoardStatus((current) => ({
+        ...current,
+        defaultBoardId: settings.default_board_id || '',
+        defaultSocialMediaId: settings.default_social_media_id || '',
+      }))
       if (!settings.postfast_api_key) {
         setPostfastStatus({ loading: false, accounts: [], error: 'PostFast API key belum diset', hasKey: false, lastSynced: null })
+        setBoardStatus((current) => ({ ...current, loading: false, boards: [], error: 'PostFast API key belum diset' }))
         if (!silent) toast.error('PostFast API key belum diset')
         return
       }
@@ -64,6 +74,7 @@ function Home() {
 
       if (connected.length > 0) {
         toast.success(`Pinterest connected: ${connected.map(accountLabel).join(', ')}`)
+        await loadBoardsForAccount(settings.default_social_media_id || connected[0].id, { silent: true, settings })
       } else if (usableAccounts.some((account) => (account.connectionStatus || account.status || '').toUpperCase() === 'DISABLED')) {
         toast.error('Account disabled, reconnect via PostFast')
       } else if (accounts.length === 0) {
@@ -76,6 +87,40 @@ function Home() {
     }
   }
 
+  const loadBoardsForAccount = async (socialMediaId, { silent = false, settings = null } = {}) => {
+    if (!socialMediaId) return
+    setBoardStatus((current) => ({ ...current, loading: true, error: '', defaultSocialMediaId: socialMediaId }))
+    try {
+      const { data } = await syncBoards(socialMediaId)
+      if (!data.ok) {
+        const message = data.error || 'Gagal sync Pinterest boards'
+        setBoardStatus((current) => ({ ...current, loading: false, error: message, boards: [] }))
+        if (!silent) toast.error(message)
+        return
+      }
+
+      const boards = data.boards || []
+      const currentDefault = settings?.default_board_id || boardStatus.defaultBoardId || ''
+      const detectedDefault = currentDefault || boardId(boards[0])
+      if (!currentDefault && detectedDefault) {
+        await updateSettings({ default_social_media_id: socialMediaId, default_board_id: detectedDefault })
+      }
+      setBoardStatus({
+        loading: false,
+        boards,
+        error: '',
+        defaultBoardId: detectedDefault,
+        defaultSocialMediaId: socialMediaId,
+        lastSynced: new Date(),
+      })
+      if (!silent) toast.success(detectedDefault ? `Default board ready: ${boardLabel(boards.find((board) => boardId(board) === detectedDefault) || boards[0])}` : 'Boards synced')
+    } catch (error) {
+      const message = errorMessage(error)
+      setBoardStatus((current) => ({ ...current, loading: false, error: message, boards: [] }))
+      if (!silent) toast.error(message)
+    }
+  }
+
   const handleSyncPostfast = async () => {
     setSyncingPostfast(true)
     try {
@@ -83,6 +128,26 @@ function Home() {
     } finally {
       setSyncingPostfast(false)
     }
+  }
+
+  const handleSyncBoards = async () => {
+    const targetAccount = connectedPostfastAccounts[0] || postfastAccounts[0]
+    const socialMediaId = boardStatus.defaultSocialMediaId || targetAccount?.id
+    if (!socialMediaId) return toast.error('Sync PostFast account dulu sebelum sync boards')
+    setSyncingBoards(true)
+    try {
+      await loadBoardsForAccount(socialMediaId, { silent: false })
+    } finally {
+      setSyncingBoards(false)
+    }
+  }
+
+  const handleDefaultBoardChange = async (nextBoardId) => {
+    const targetAccount = connectedPostfastAccounts[0] || postfastAccounts[0]
+    const socialMediaId = boardStatus.defaultSocialMediaId || targetAccount?.id
+    setBoardStatus((current) => ({ ...current, defaultBoardId: nextBoardId, defaultSocialMediaId: socialMediaId || current.defaultSocialMediaId }))
+    await updateSettings({ default_board_id: nextBoardId, default_social_media_id: socialMediaId })
+    toast.success('Default board saved')
   }
 
   const handleParse = async (event) => {
@@ -157,6 +222,8 @@ function Home() {
   const { connected: connectedPostfastAccounts, usableAccounts: postfastAccounts } = summarizePostfastAccounts(postfastStatus.accounts)
   const hasDisabledPostfast = postfastAccounts.some((account) => (account.connectionStatus || account.status || '').toUpperCase() === 'DISABLED')
   const postfastReady = connectedPostfastAccounts.length > 0
+  const defaultBoard = boardStatus.boards.find((board) => boardId(board) === boardStatus.defaultBoardId)
+  const boardReady = Boolean(boardStatus.defaultBoardId)
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
@@ -195,6 +262,33 @@ function Home() {
             <button onClick={handleSyncPostfast} disabled={postfastStatus.loading || syncingPostfast} className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:opacity-60">
               <RefreshCcw size={16} className={(postfastStatus.loading || syncingPostfast) ? 'animate-spin' : ''} />
               Sync Now
+            </button>
+          </div>
+        </div>
+
+        <div className={`mt-4 rounded-[1.5rem] border p-4 ${boardReady ? 'border-sky-200 bg-sky-50' : 'border-amber-200 bg-amber-50'}`}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className={`mt-1 rounded-full p-2 ${boardReady ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'}`}>
+                {boardReady ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+              </div>
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-500">Pinterest board</p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">
+                  {boardStatus.loading ? 'Checking Pinterest boards...' : boardReady ? `Default board: ${boardLabel(defaultBoard || { boardId: boardStatus.defaultBoardId })}` : boardStatus.error || 'Belum ada default board'}
+                </h2>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <select value={boardStatus.defaultBoardId} onChange={(event) => handleDefaultBoardChange(event.target.value)} disabled={!boardStatus.boards.length} className="min-h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 disabled:opacity-60">
+                    <option value="">Choose default board</option>
+                    {boardStatus.boards.map((board) => <option key={boardId(board)} value={boardId(board)}>{boardLabel(board)}</option>)}
+                  </select>
+                  {boardStatus.lastSynced && <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600 ring-1 ring-black/5">Boards synced {boardStatus.lastSynced.toLocaleTimeString()}</span>}
+                </div>
+              </div>
+            </div>
+            <button onClick={handleSyncBoards} disabled={boardStatus.loading || syncingBoards || !postfastReady} className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:opacity-60">
+              <RefreshCcw size={16} className={(boardStatus.loading || syncingBoards) ? 'animate-spin' : ''} />
+              Sync Boards
             </button>
           </div>
         </div>

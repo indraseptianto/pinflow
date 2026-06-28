@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Image, Loader2, RefreshCw, Send, Type, TrendingUp, LayoutGrid } from 'lucide-react'
-import { generateAll, generateImage, generateText, getBoardRecommendation, getPin, getSEOScore, schedulePin, updatePin } from '../lib/api'
+import { generateAll, generateImage, generateText, getBoardRecommendation, getPin, getSEOScore, getSettings, schedulePin, updatePin } from '../lib/api'
 
 const errorMessage = (error) => error.response?.data?.detail || error.message
 const tagList = (tags) => (Array.isArray(tags) ? tags : String(tags || '').split(',').map((tag) => tag.trim()).filter(Boolean))
@@ -44,6 +44,12 @@ function Review() {
         })
         if (data.social_media_id) setSchedule(s => ({ ...s, social_media_id: data.social_media_id }))
         if (data.board_id) setSchedule(s => ({ ...s, board_id: data.board_id }))
+        const { data: settings } = await getSettings()
+        setSchedule(s => ({
+          ...s,
+          social_media_id: data.social_media_id || settings.default_social_media_id || s.social_media_id,
+          board_id: data.board_id || settings.default_board_id || s.board_id,
+        }))
       } catch (error) {
         toast.error(errorMessage(error))
       } finally {
@@ -130,6 +136,19 @@ function Review() {
     try {
       await saveDraft({ status: 'ready' })
       toast.success('Pin approved and ready to schedule')
+    } catch (error) {
+      toast.error(errorMessage(error))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const handleSaveDraft = async () => {
+    setBusy('draft')
+    try {
+      await saveDraft({ status: 'draft' })
+      toast.success('Draft saved without scheduling')
+      navigate('/calendar')
     } catch (error) {
       toast.error(errorMessage(error))
     } finally {
@@ -278,6 +297,7 @@ function Review() {
             <Action busy={busy === 'image'} onClick={() => regenerate('image')} icon={Image} label="Image only" />
             <Action busy={busy === 'text'} onClick={() => regenerate('text')} icon={Type} label="Text only" />
             <Action busy={busy === 'all'} onClick={() => regenerate('all')} icon={RefreshCw} label="All" />
+            <button onClick={handleSaveDraft} disabled={busy === 'draft'} className="rounded-full border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60">{busy === 'draft' ? 'Saving...' : 'Save Draft'}</button>
             <button onClick={approve} disabled={busy === 'approve'} className="rounded-full bg-[#E60023] px-5 py-3 text-sm font-bold text-white disabled:opacity-60">Approve</button>
           </div>
         </section>
