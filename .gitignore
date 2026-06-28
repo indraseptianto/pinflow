@@ -1,0 +1,28 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+/data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Build output
+frontend/dist/
+dist/
+build/
+
+# Logs and local files
+*.log
+.DS_Store
+.cache/

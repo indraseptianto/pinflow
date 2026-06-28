@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PinFlow</title>
+  <!-- error tracking -->
+<script>
+window.onerror=function(m,u,l,c,e){var d=document.createElement("div");d.style.cssText="position:fixed;top:0;left:0;right:0;background:#E60023;color:white;padding:12px;font-size:14px;z-index:99999;font-family:sans-serif";d.textContent="JS ERROR: "+(e?e.message:m)+" (line "+l+")";document.body.prepend(d);var loader=document.getElementById("app-loading");if(loader)loader.style.display="none"};
+window.addEventListener("unhandledrejection",function(e){var d=document.createElement("div");d.style.cssText="position:fixed;top:50px;left:0;right:0;background:#ff6b00;color:white;padding:12px;font-size:14px;z-index:99999;font-family:sans-serif";d.textContent="PROMISE ERROR: "+(e.reason?e.reason.message||e.reason:"Unknown");document.body.prepend(d);var loader=document.getElementById("app-loading");if(loader)loader.style.display="none"});
+</script>
+</head>
+  <body>
+    <div id="app-loading" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#f8f6f2;flex-direction:column;z-index:9999"><div style="width:48px;height:48px;border-radius:50%;background:#E60023;margin:0 auto 12px"></div><div style="font-size:24px;font-weight:bold;color:#0f172a">PinFlow</div><div style="margin-top:8px;color:#64748b">Loading...</div></div>
+    <div id="root"></div>
+    <script>
+      window.__hidePinFlowLoader=function(){var l=document.getElementById('app-loading');if(l)l.style.display='none'};
+      setTimeout(window.__hidePinFlowLoader,5000);
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

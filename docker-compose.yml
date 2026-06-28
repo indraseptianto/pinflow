@@ -1,0 +1,18 @@
+services:
+  pinflow-backend:
+    build: ./backend
+    container_name: pinflow-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:8028:8000"
+
+  pinflow-frontend:
+    build: ./frontend
+    container_name: pinflow-frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3028:80"
