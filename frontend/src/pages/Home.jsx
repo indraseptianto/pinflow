@@ -226,19 +226,19 @@ function Home() {
   const boardReady = Boolean(boardStatus.defaultBoardId)
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
-      <section className="overflow-hidden rounded-[2rem] bg-white p-8 shadow-sm ring-1 ring-slate-200">
-        <div className="mb-8 inline-flex items-center gap-2 rounded-full bg-red-50 px-4 py-2 text-sm font-semibold text-[#E60023]">
-          <Sparkles size={16} /> Etsy to Pinterest in one flow
+    <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
+      <section className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1.5 text-sm font-semibold text-[#E60023]">
+          <Sparkles size={15} /> Etsy to Pinterest in one flow
         </div>
-        <h1 className="max-w-3xl font-serif text-5xl font-bold tracking-tight text-slate-950 sm:text-6xl">
-          Turn product links into 3 Pinterest pin variants.
+        <h1 className="max-w-3xl text-4xl font-black tracking-[-0.04em] text-slate-950 sm:text-5xl">
+          Turn product links into clean Pinterest pin variants.
         </h1>
-        <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-          Parse one Etsy listing, choose a visual style, then generate benefit, gift, and lifestyle pin angles.
+        <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
+          Parse one Etsy listing, choose a visual style, then generate review-ready Pinterest assets.
         </p>
 
-        <div className={`mt-6 rounded-[1.5rem] border p-4 ${postfastReady ? 'border-emerald-200 bg-emerald-50' : hasDisabledPostfast ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <div className={`mt-1 rounded-full p-2 ${postfastReady ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -266,7 +266,7 @@ function Home() {
           </div>
         </div>
 
-        <div className={`mt-4 rounded-[1.5rem] border p-4 ${boardReady ? 'border-sky-200 bg-sky-50' : 'border-amber-200 bg-amber-50'}`}>
+        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <div className={`mt-1 rounded-full p-2 ${boardReady ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -318,7 +318,7 @@ function Home() {
               placeholder="paste Etsy product URL"
               className="min-h-14 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-5 text-base outline-none transition focus:border-[#E60023] focus:bg-white focus:ring-4 focus:ring-red-100"
             />
-            <button type="submit" disabled={parsing} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-[#E60023] px-6 font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-700 disabled:opacity-70">
+            <button type="submit" disabled={parsing} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-[#E60023] px-6 font-bold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-70">
               {parsing && <Loader2 size={18} className="animate-spin" />}
               Parse
             </button>
@@ -365,7 +365,7 @@ function Home() {
               placeholder="Image URLs (comma separated, optional)"
               className="min-h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base outline-none transition focus:border-[#E60023] focus:bg-white focus:ring-4 focus:ring-red-100"
             />
-            <button type="submit" disabled={parsing} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#E60023] px-6 font-bold text-white shadow-lg shadow-red-100 transition hover:bg-red-700 disabled:opacity-70">
+            <button type="submit" disabled={parsing} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#E60023] px-6 font-bold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-70">
               {parsing && <Loader2 size={18} className="animate-spin" />}
               Create Product
             </button>
@@ -386,7 +386,7 @@ function Home() {
         </div>
       </section>
 
-      <section className="rounded-[2rem] bg-slate-950 p-4 text-white shadow-xl shadow-slate-200">
+      <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
         {product ? (
           <div className="overflow-hidden rounded-[1.5rem] bg-white text-slate-950">
             <img src={product.original_images?.[0] || 'https://placehold.co/900x1200/f1f5f9/0f172a?text=PinFlow'} alt={product.title || 'Parsed product'} className="h-80 w-full object-cover" />
@@ -406,10 +406,10 @@ function Home() {
             </div>
           </div>
         ) : (
-          <div className="flex min-h-[28rem] flex-col items-center justify-center rounded-[1.5rem] border border-white/10 bg-white/5 p-8 text-center">
-            <div className="mb-4 h-20 w-20 rounded-full bg-[#E60023]" />
-            <h2 className="font-serif text-3xl font-bold">Your product preview appears here.</h2>
-            <p className="mt-3 max-w-sm text-slate-300">Paste a product URL and parse it, or enter product details manually.</p>
+          <div className="flex min-h-[28rem] flex-col items-center justify-center rounded-[1.25rem] border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-950">
+            <div className="mb-5 h-14 w-14 rounded-2xl bg-[#E60023]" />
+            <h2 className="text-2xl font-black tracking-tight">Your product preview appears here.</h2>
+            <p className="mt-3 max-w-sm text-sm leading-6 text-slate-500">Paste a product URL and parse it, or enter product details manually.</p>
           </div>
         )}
       </section>
