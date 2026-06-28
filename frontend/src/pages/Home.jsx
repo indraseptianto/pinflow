@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowRight, Loader2, Sparkles, Edit3 } from 'lucide-react'
-import { createManualProduct, createPin, generateVariants, getStylePresets, parseProduct } from '../lib/api'
+import { AlertTriangle, ArrowRight, CheckCircle2, Edit3, Loader2, RefreshCcw, Sparkles } from 'lucide-react'
+import { createManualProduct, createPin, generateVariants, getSettings, getStylePresets, parseProduct, syncAccounts } from '../lib/api'
 
 const errorMessage = (error) => error.response?.data?.detail || error.message
 
@@ -20,10 +20,70 @@ function Home() {
   const [manualMode, setManualMode] = useState(false)
   const [manual, setManual] = useState({ title: '', description_raw: '', price: '', shop_name: '', source_url: '' })
   const [manualImages, setManualImages] = useState('')
+  const [postfastStatus, setPostfastStatus] = useState({ loading: true, accounts: [], error: '', hasKey: false, lastSynced: null })
+  const [syncingPostfast, setSyncingPostfast] = useState(false)
 
   useEffect(() => {
     getStylePresets().then(({ data }) => setStyles(data.styles || [])).catch(() => {})
+    loadPostfastStatus({ silent: false })
   }, [])
+
+  const summarizePostfastAccounts = (accounts) => {
+    const pinterestAccounts = accounts.filter((account) => (account.platform || '').toLowerCase().includes('pinterest'))
+    const usableAccounts = pinterestAccounts.length ? pinterestAccounts : accounts
+    const connected = usableAccounts.filter((account) => {
+      const status = (account.connectionStatus || account.status || '').toUpperCase()
+      return status && !['DISABLED', 'FAILED', 'EXPIRED', 'ERROR'].includes(status)
+    })
+    return { pinterestAccounts, usableAccounts, connected }
+  }
+
+  const accountLabel = (account) => account.displayName || account.platformUsername || account.username || account.name || account.id || 'Pinterest account'
+
+  const loadPostfastStatus = async ({ silent = false } = {}) => {
+    setPostfastStatus((current) => ({ ...current, loading: true, error: '' }))
+    try {
+      const { data: settings } = await getSettings()
+      if (!settings.postfast_api_key) {
+        setPostfastStatus({ loading: false, accounts: [], error: 'PostFast API key belum diset', hasKey: false, lastSynced: null })
+        if (!silent) toast.error('PostFast API key belum diset')
+        return
+      }
+
+      const { data } = await syncAccounts()
+      if (!data.ok) {
+        const message = data.error || 'Gagal sync PostFast account'
+        setPostfastStatus({ loading: false, accounts: [], error: message, hasKey: true, lastSynced: null })
+        if (!silent) toast.error(message)
+        return
+      }
+
+      const accounts = data.accounts || []
+      const { connected, usableAccounts } = summarizePostfastAccounts(accounts)
+      setPostfastStatus({ loading: false, accounts, error: '', hasKey: true, lastSynced: new Date() })
+
+      if (connected.length > 0) {
+        toast.success(`Pinterest connected: ${connected.map(accountLabel).join(', ')}`)
+      } else if (usableAccounts.some((account) => (account.connectionStatus || account.status || '').toUpperCase() === 'DISABLED')) {
+        toast.error('Account disabled, reconnect via PostFast')
+      } else if (accounts.length === 0) {
+        toast.error('Belum ada account Pinterest yang connect di PostFast')
+      }
+    } catch (error) {
+      const message = errorMessage(error)
+      setPostfastStatus({ loading: false, accounts: [], error: message, hasKey: true, lastSynced: null })
+      if (!silent) toast.error(message)
+    }
+  }
+
+  const handleSyncPostfast = async () => {
+    setSyncingPostfast(true)
+    try {
+      await loadPostfastStatus({ silent: false })
+    } finally {
+      setSyncingPostfast(false)
+    }
+  }
 
   const handleParse = async (event) => {
     event.preventDefault()
@@ -94,6 +154,10 @@ function Home() {
     }
   }
 
+  const { connected: connectedPostfastAccounts, usableAccounts: postfastAccounts } = summarizePostfastAccounts(postfastStatus.accounts)
+  const hasDisabledPostfast = postfastAccounts.some((account) => (account.connectionStatus || account.status || '').toUpperCase() === 'DISABLED')
+  const postfastReady = connectedPostfastAccounts.length > 0
+
   return (
     <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
       <section className="overflow-hidden rounded-[2rem] bg-white p-8 shadow-sm ring-1 ring-slate-200">
@@ -106,6 +170,34 @@ function Home() {
         <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
           Parse one Etsy listing, choose a visual style, then generate benefit, gift, and lifestyle pin angles.
         </p>
+
+        <div className={`mt-6 rounded-[1.5rem] border p-4 ${postfastReady ? 'border-emerald-200 bg-emerald-50' : hasDisabledPostfast ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className={`mt-1 rounded-full p-2 ${postfastReady ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                {postfastReady ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+              </div>
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-500">PostFast status</p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">
+                  {postfastStatus.loading ? 'Checking connected Pinterest account...' : postfastReady ? `Pinterest connected: ${connectedPostfastAccounts.map(accountLabel).join(', ')}` : postfastStatus.error || (hasDisabledPostfast ? 'Account disabled, reconnect via PostFast' : 'Belum ada account Pinterest yang connect')}
+                </h2>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold text-slate-600">
+                  {postfastAccounts.map((account) => (
+                    <span key={account.id || accountLabel(account)} className="rounded-full bg-white px-3 py-1 ring-1 ring-black/5">
+                      {accountLabel(account)} · {account.connectionStatus || account.status || 'UNKNOWN'}
+                    </span>
+                  ))}
+                  {postfastStatus.lastSynced && <span className="rounded-full bg-white px-3 py-1 ring-1 ring-black/5">Synced {postfastStatus.lastSynced.toLocaleTimeString()}</span>}
+                </div>
+              </div>
+            </div>
+            <button onClick={handleSyncPostfast} disabled={postfastStatus.loading || syncingPostfast} className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:opacity-60">
+              <RefreshCcw size={16} className={(postfastStatus.loading || syncingPostfast) ? 'animate-spin' : ''} />
+              Sync Now
+            </button>
+          </div>
+        </div>
 
         {/* Mode Toggle */}
         <div className="mt-6 flex items-center gap-3">
