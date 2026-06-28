@@ -71,15 +71,18 @@ function Review() {
     setBusy(type)
     try {
       const productId = pin.product_id || pin.product?.id
-      const request = type === 'image' ? generateImage : type === 'text' ? generateText : generateAll
+      const request = type === 'image' ? generateImage : type === 'all' ? generateAll : generateText
       const { data } = await request(productId, instruction)
-      const next = {
-        title: data.title || form.title,
-        description: data.description || form.description,
-        tags: data.tags ? tagList(data.tags) : form.tags,
-        pinterest_link: data.pinterest_link || form.pinterest_link,
-        image_url: data.image_b64 ? `data:image/jpeg;base64,${data.image_b64}` : (data.generated_image_url || data.image_url || form.image_url),
+      const next = { ...form }
+
+      if (type === 'all' || type === 'title') next.title = data.title || form.title
+      if (type === 'all' || type === 'description') next.description = data.description || form.description
+      if (type === 'all' || type === 'tags') next.tags = data.tags ? tagList(data.tags) : form.tags
+      if (type === 'all') next.pinterest_link = data.pinterest_link || form.pinterest_link
+      if (type === 'all' || type === 'image') {
+        next.image_url = data.image_b64 ? `data:image/jpeg;base64,${data.image_b64}` : (data.generated_image_url || data.image_url || form.image_url)
       }
+
       setForm(next)
       await updatePin(pinId, { ...next, generated_image_url: next.image_url })
       toast.success(`${type === 'all' ? 'Pin' : type} regenerated`)
@@ -294,8 +297,10 @@ function Review() {
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-3">
+            <Action busy={busy === 'title'} onClick={() => regenerate('title')} icon={Type} label="Title only" />
+            <Action busy={busy === 'description'} onClick={() => regenerate('description')} icon={Type} label="Description only" />
+            <Action busy={busy === 'tags'} onClick={() => regenerate('tags')} icon={Type} label="Tags only" />
             <Action busy={busy === 'image'} onClick={() => regenerate('image')} icon={Image} label="Image only" />
-            <Action busy={busy === 'text'} onClick={() => regenerate('text')} icon={Type} label="Text only" />
             <Action busy={busy === 'all'} onClick={() => regenerate('all')} icon={RefreshCw} label="All" />
             <button onClick={handleSaveDraft} disabled={busy === 'draft'} className="rounded-full border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60">{busy === 'draft' ? 'Saving...' : 'Save Draft'}</button>
             <button onClick={approve} disabled={busy === 'approve'} className="rounded-full bg-[#E60023] px-5 py-3 text-sm font-bold text-white disabled:opacity-60">Approve</button>

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
-import { Loader2, RefreshCw, Trash2, XCircle } from 'lucide-react'
-import { cancelPin, deletePin, listPins, syncPinStatus } from '../lib/api'
+import { CalendarClock, Loader2, RefreshCw, Trash2, XCircle } from 'lucide-react'
+import { cancelPin, deletePin, getSettings, listPins, schedulePin, syncPinStatus } from '../lib/api'
 
 const errorMessage = (error) => error.response?.data?.detail || error.message
 const badgeColors = {
@@ -18,6 +18,8 @@ function Calendar() {
   const [pins, setPins] = useState([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState('')
+  const [selected, setSelected] = useState([])
+  const [batch, setBatch] = useState({ start_at: '', interval_hours: 24, social_media_id: '', board_id: '' })
 
   const loadPins = async (silent = false) => {
     if (!silent) setLoading(true)
@@ -33,6 +35,11 @@ function Calendar() {
 
   useEffect(() => {
     loadPins()
+    getSettings().then(({ data }) => setBatch((current) => ({
+      ...current,
+      social_media_id: data.default_social_media_id || current.social_media_id,
+      board_id: data.default_board_id || current.board_id,
+    }))).catch(() => {})
     const interval = setInterval(() => loadPins(true), 30000)
     return () => clearInterval(interval)
   }, [])
@@ -76,6 +83,37 @@ function Calendar() {
     }
   }
 
+  const toggleSelected = (id) => {
+    setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+  }
+
+  const scheduleBatch = async (event) => {
+    event.preventDefault()
+    if (!selected.length) return toast.error('Select at least one draft pin')
+    if (!batch.social_media_id || !batch.board_id) return toast.error('Social media ID and board ID are required')
+    const start = batch.start_at ? dayjs(batch.start_at) : dayjs().add(10, 'minute')
+    if (!start.isValid()) return toast.error('Start time is invalid')
+
+    setBusy('batch')
+    try {
+      for (const [index, id] of selected.entries()) {
+        const scheduledAt = start.add(index * Number(batch.interval_hours || 24), 'hour').toISOString()
+        await schedulePin(id, {
+          social_media_id: batch.social_media_id,
+          board_id: batch.board_id,
+          scheduled_at: scheduledAt,
+        })
+      }
+      toast.success(`Batch scheduled ${selected.length} pins`)
+      setSelected([])
+      loadPins(true)
+    } catch (error) {
+      toast.error(errorMessage(error))
+    } finally {
+      setBusy('')
+    }
+  }
+
   return (
     <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -89,6 +127,29 @@ function Calendar() {
         </button>
       </div>
 
+      <form onSubmit={scheduleBatch} className="mb-6 grid gap-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1.1fr_1.1fr_1fr_0.7fr_auto] md:items-end">
+        <label className="text-sm font-bold text-slate-700">
+          Social media ID
+          <input value={batch.social_media_id} onChange={(event) => setBatch({ ...batch, social_media_id: event.target.value })} placeholder="PostFast account ID" className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 font-normal" />
+        </label>
+        <label className="text-sm font-bold text-slate-700">
+          Board ID
+          <input value={batch.board_id} onChange={(event) => setBatch({ ...batch, board_id: event.target.value })} placeholder="Pinterest board ID" className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 font-normal" />
+        </label>
+        <label className="text-sm font-bold text-slate-700">
+          Start time
+          <input type="datetime-local" value={batch.start_at} onChange={(event) => setBatch({ ...batch, start_at: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 font-normal" />
+        </label>
+        <label className="text-sm font-bold text-slate-700">
+          Interval hours
+          <input type="number" min="1" max="168" value={batch.interval_hours} onChange={(event) => setBatch({ ...batch, interval_hours: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 font-normal" />
+        </label>
+        <button disabled={busy === 'batch'} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-60">
+          {busy === 'batch' ? <Loader2 size={16} className="animate-spin" /> : <CalendarClock size={16} />}
+          Batch Schedule {selected.length ? `(${selected.length})` : ''}
+        </button>
+      </form>
+
       {loading ? (
         <div className="flex h-64 items-center justify-center"><Loader2 className="animate-spin text-[#E60023]" size={32} /></div>
       ) : (
@@ -97,7 +158,8 @@ function Calendar() {
             const id = pin.id || pin.pin_id
             const status = pin.status || 'draft'
             return (
-              <div key={id} className="grid gap-4 border-b border-slate-100 p-4 last:border-b-0 md:grid-cols-[64px_1fr_130px_180px_190px] md:items-center">
+              <div key={id} className="grid gap-4 border-b border-slate-100 p-4 last:border-b-0 md:grid-cols-[32px_64px_1fr_130px_180px_190px] md:items-center">
+                <input type="checkbox" checked={selected.includes(id)} onChange={() => toggleSelected(id)} disabled={status === 'scheduled' || status === 'published'} className="h-5 w-5 rounded border-slate-300 accent-[#E60023] disabled:opacity-30" />
                 <img src={pin.generated_image_url || pin.image_url || pin.image || 'https://placehold.co/120x120/f1f5f9/0f172a?text=Pin'} alt={pin.title} className="h-16 w-16 rounded-2xl object-cover" />
                 <div>
                   <h2 className="font-bold text-slate-950">{pin.title || 'Untitled pin'}</h2>
