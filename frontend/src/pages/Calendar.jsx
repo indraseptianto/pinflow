@@ -118,7 +118,7 @@ function Calendar() {
     <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="font-serif text-4xl font-bold">Publishing Calendar</h1>
+          <h1 className="text-4xl font-black tracking-tight">Publishing Calendar</h1>
           <p className="mt-2 text-slate-600">Track drafts, scheduled pins, and live publishing results.</p>
         </div>
         <button onClick={handleSync} disabled={busy === 'sync'} className="inline-flex items-center justify-center gap-2 rounded-full bg-[#E60023] px-5 py-3 text-sm font-bold text-white disabled:opacity-60">

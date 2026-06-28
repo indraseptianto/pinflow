@@ -19,15 +19,15 @@ function App() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-[#fafafa] text-slate-950">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fff7ed_0,#fafaf9_34rem,#f8fafc_100%)] text-slate-950">
       <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-stone-200 bg-white/80 backdrop-blur-xl">
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <Link to="/" className="flex items-center gap-3 text-2xl font-black tracking-tight">
-            <span className="h-8 w-8 rounded-xl bg-[#E60023]" />
+            <span className="h-8 w-8 rounded-xl bg-gradient-to-br from-rose-500 to-red-700 shadow-sm" />
             <span>PinFlow</span>
           </Link>
-          <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-1">
+          <div className="flex items-center gap-1 rounded-full border border-stone-200 bg-stone-50/80 p-1">
             {navItems.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}

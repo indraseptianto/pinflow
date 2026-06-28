@@ -5,6 +5,8 @@ import { AlertTriangle, ArrowRight, CheckCircle2, Edit3, Loader2, RefreshCcw, Sp
 import { createManualProduct, createPin, generateVariants, getSettings, getStylePresets, parseProduct, syncAccounts, syncBoards, updateSettings } from '../lib/api'
 
 const errorMessage = (error) => error.response?.data?.detail || error.message
+const formatTime = (date) => date ? new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit' }).format(date) : ''
+const sourceLabel = (product) => product?.shop_name || (product?.source_marketplace === 'manual' ? 'Manual entry' : 'Etsy listing')
 
 function Home() {
   const navigate = useNavigate()
@@ -27,7 +29,7 @@ function Home() {
 
   useEffect(() => {
     getStylePresets().then(({ data }) => setStyles(data.styles || [])).catch(() => {})
-    loadPostfastStatus({ silent: false })
+    loadPostfastStatus({ silent: true })
   }, [])
 
   const summarizePostfastAccounts = (accounts) => {
@@ -73,7 +75,7 @@ function Home() {
       setPostfastStatus({ loading: false, accounts, error: '', hasKey: true, lastSynced: new Date() })
 
       if (connected.length > 0) {
-        toast.success(`Pinterest connected: ${connected.map(accountLabel).join(', ')}`)
+        if (!silent) toast.success(`Pinterest connected: ${connected.map(accountLabel).join(', ')}`)
         await loadBoardsForAccount(settings.default_social_media_id || connected[0].id, { silent: true, settings })
       } else if (usableAccounts.some((account) => (account.connectionStatus || account.status || '').toUpperCase() === 'DISABLED')) {
         toast.error('Account disabled, reconnect via PostFast')
@@ -210,7 +212,7 @@ function Home() {
         })
         created.push(pin)
       }
-      toast.success(`Generated ${created.length} pin variants`)
+      toast.success(`${created.length} pin variants ready`)
       navigate(`/review/${created[0].id}`)
     } catch (error) {
       toast.error(errorMessage(error))
@@ -226,19 +228,19 @@ function Home() {
   const boardReady = Boolean(boardStatus.defaultBoardId)
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
-      <section className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1.5 text-sm font-semibold text-[#E60023]">
+    <div className="grid gap-8 lg:grid-cols-[1.08fr_0.92fr] lg:items-start">
+      <section className="overflow-hidden rounded-[2rem] border border-stone-200 bg-white/90 p-6 shadow-[0_20px_80px_-60px_rgba(15,23,42,0.45)] sm:p-8">
+        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-rose-100 bg-rose-50 px-3 py-1.5 text-sm font-semibold text-rose-700">
           <Sparkles size={15} /> Etsy to Pinterest in one flow
         </div>
         <h1 className="max-w-3xl text-4xl font-black tracking-[-0.04em] text-slate-950 sm:text-5xl">
-          Turn product links into clean Pinterest pin variants.
+          Elegant Pinterest pins, generated from one product.
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-          Parse one Etsy listing, choose a visual style, then generate review-ready Pinterest assets.
+          Import product details, choose style direction, then review clean pin variants before scheduling.
         </p>
 
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="mt-6 rounded-3xl border border-stone-200 bg-stone-50/80 p-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <div className={`mt-1 rounded-full p-2 ${postfastReady ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -251,11 +253,11 @@ function Home() {
                 </h2>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold text-slate-600">
                   {postfastAccounts.map((account) => (
-                    <span key={account.id || accountLabel(account)} className="rounded-full bg-white px-3 py-1 ring-1 ring-black/5">
+                    <span key={account.id || accountLabel(account)} className="rounded-full bg-white px-3 py-1 ring-1 ring-stone-200">
                       {accountLabel(account)} · {account.connectionStatus || account.status || 'UNKNOWN'}
                     </span>
                   ))}
-                  {postfastStatus.lastSynced && <span className="rounded-full bg-white px-3 py-1 ring-1 ring-black/5">Synced {postfastStatus.lastSynced.toLocaleTimeString()}</span>}
+                  {postfastStatus.lastSynced && <span className="rounded-full bg-white px-3 py-1 ring-1 ring-stone-200">Synced {formatTime(postfastStatus.lastSynced)}</span>}
                 </div>
               </div>
             </div>
@@ -266,7 +268,7 @@ function Home() {
           </div>
         </div>
 
-        <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="mt-3 rounded-3xl border border-stone-200 bg-white p-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <div className={`mt-1 rounded-full p-2 ${boardReady ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -282,7 +284,7 @@ function Home() {
                     <option value="">Choose default board</option>
                     {boardStatus.boards.map((board) => <option key={boardId(board)} value={boardId(board)}>{boardLabel(board)}</option>)}
                   </select>
-                  {boardStatus.lastSynced && <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600 ring-1 ring-black/5">Boards synced {boardStatus.lastSynced.toLocaleTimeString()}</span>}
+                  {boardStatus.lastSynced && <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600 ring-1 ring-black/5">Boards synced {formatTime(boardStatus.lastSynced)}</span>}
                 </div>
               </div>
             </div>
@@ -386,14 +388,14 @@ function Home() {
         </div>
       </section>
 
-      <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-[2rem] border border-stone-200 bg-white/90 p-4 shadow-[0_20px_80px_-60px_rgba(15,23,42,0.45)]">
         {product ? (
           <div className="overflow-hidden rounded-[1.5rem] bg-white text-slate-950">
             <img src={product.original_images?.[0] || 'https://placehold.co/900x1200/f1f5f9/0f172a?text=PinFlow'} alt={product.title || 'Parsed product'} className="h-80 w-full object-cover" />
             <div className="space-y-4 p-6">
               <div>
-                <p className="text-sm font-semibold text-[#E60023]">{product.shop_name || (product.source_marketplace === 'manual' ? 'Manual Entry' : 'Etsy shop')}</p>
-                <h2 className="mt-1 text-2xl font-bold">{product.title}</h2>
+                <p className="text-sm font-semibold text-rose-700">{sourceLabel(product)}</p>
+                <h2 className="mt-1 text-2xl font-black leading-tight tracking-tight">{product.title}</h2>
               </div>
               <p className="line-clamp-4 text-sm leading-6 text-slate-600">{product.description_raw}</p>
               <div className="flex items-center justify-between border-t border-slate-100 pt-4">
@@ -406,8 +408,8 @@ function Home() {
             </div>
           </div>
         ) : (
-          <div className="flex min-h-[28rem] flex-col items-center justify-center rounded-[1.25rem] border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-950">
-            <div className="mb-5 h-14 w-14 rounded-2xl bg-[#E60023]" />
+          <div className="flex min-h-[28rem] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-stone-300 bg-stone-50/70 p-8 text-center text-slate-950">
+            <div className="mb-5 h-14 w-14 rounded-2xl bg-gradient-to-br from-rose-500 to-red-700 shadow-lg shadow-rose-200" />
             <h2 className="text-2xl font-black tracking-tight">Your product preview appears here.</h2>
             <p className="mt-3 max-w-sm text-sm leading-6 text-slate-500">Paste a product URL and parse it, or enter product details manually.</p>
           </div>

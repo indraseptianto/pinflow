@@ -1,6 +1,14 @@
 import httpx
 import json
+import re
 from typing import Optional
+
+GENERATED_META_RE = re.compile(r"\bGenerated\s+\d{4}-\d{2}-\d{2}T[^|\n]+\s*\|\s*Source:\s*\w+\b", re.I)
+
+
+def clean_ai_text(value: object) -> str:
+    text = GENERATED_META_RE.sub("", str(value or ""))
+    return " ".join(text.split())
 
 
 async def generate_pin_text(
@@ -51,9 +59,9 @@ Generate catchy Pinterest pin copy."""
     content = r.json()["choices"][0]["message"]["content"]
     data = json.loads(content)
 
-    pin_title = str(data.get("title", title))[:100]
-    pin_description = str(data.get("description", ""))[:800]
-    tags = [str(t).strip().lstrip("#") for t in data.get("tags", [])][:10]
+    pin_title = clean_ai_text(data.get("title", title))[:100]
+    pin_description = clean_ai_text(data.get("description", ""))[:800]
+    tags = [clean_ai_text(t).lstrip("#") for t in data.get("tags", []) if clean_ai_text(t)][:10]
 
     return {"title": pin_title, "description": pin_description, "tags": tags}
 
