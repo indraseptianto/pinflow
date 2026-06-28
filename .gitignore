@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+.pinflow_basic_auth_password
 
 # Runtime data
 /data/

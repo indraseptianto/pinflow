@@ -44,12 +44,20 @@ def read_settings(session: Session = Depends(get_session)):
     }
 
 
+SECRET_FIELDS = {"ai_router_api_key", "postfast_api_key"}
+SECRET_PLACEHOLDERS = {"", "***"}
+
+
 @router.put("")
 def update_settings(body: SettingsUpdate, session: Session = Depends(get_session)):
     row = get_settings_row(session)
     for field, val in body.model_dump(exclude_none=True).items():
-        if val != "***":   # skip masked placeholders
-            setattr(row, field, val)
+        if field in SECRET_FIELDS and isinstance(val, str) and val.strip() in SECRET_PLACEHOLDERS:
+            # Keep existing secrets when the UI sends a masked or blank placeholder.
+            continue
+        if val == "***":
+            continue
+        setattr(row, field, val)
     row.updated_at = datetime.utcnow()
     session.add(row)
     session.commit()
