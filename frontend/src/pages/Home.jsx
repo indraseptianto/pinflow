@@ -165,7 +165,7 @@ function Home() {
       setProduct(data.product)
       setProductImagesInput((data.product.original_images || []).join(', '))
       if ((data.product.original_images || []).length === 0) {
-        toast.error('Etsy blocked image scrape. Paste product image URL before generating.')
+        toast('Etsy blocked image scrape. You can still generate text-only variants, then paste image URL in Review.')
       } else {
         toast.success(data.cached ? 'Loaded cached product' : 'Product parsed')
       }
