@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Image, Loader2, RefreshCw, Send, Type, TrendingUp, LayoutGrid } from 'lucide-react'
+import { Image, Loader2, RefreshCw, Send, Sparkles, Type, TrendingUp, LayoutGrid } from 'lucide-react'
 import { generateAll, generateImage, generateText, getBoardRecommendation, getPin, getSEOScore, getSettings, schedulePin, updatePin } from '../lib/api'
 
 const errorMessage = (error) => error.response?.data?.detail || error.message
@@ -67,6 +67,22 @@ function Review() {
     return data
   }
 
+  const applyGeneratedText = async (type, data, successMessage) => {
+    const next = { ...form }
+
+    if (type === 'all' || type === 'title' || type === 'title-description') next.title = data.title || form.title
+    if (type === 'all' || type === 'description' || type === 'title-description') next.description = data.description || form.description
+    if (type === 'all' || type === 'tags') next.tags = data.tags ? tagList(data.tags) : form.tags
+    if (type === 'all') next.pinterest_link = data.pinterest_link || form.pinterest_link
+    if (type === 'all' || type === 'image') {
+      next.image_url = data.image_b64 ? `data:image/jpeg;base64,${data.image_b64}` : (data.generated_image_url || data.image_url || form.image_url)
+    }
+
+    setForm(next)
+    await updatePin(pinId, { ...next, generated_image_url: next.image_url })
+    toast.success(successMessage)
+  }
+
   const regenerate = async (type) => {
     if (!pin) return
     setBusy(type)
@@ -74,19 +90,25 @@ function Review() {
       const productId = pin.product_id || pin.product?.id
       const request = type === 'image' ? generateImage : type === 'all' ? generateAll : generateText
       const { data } = await request(productId, instruction)
-      const next = { ...form }
+      await applyGeneratedText(type, data, `${type === 'all' ? 'Pin' : type} regenerated`)
+    } catch (error) {
+      toast.error(errorMessage(error))
+    } finally {
+      setBusy('')
+    }
+  }
 
-      if (type === 'all' || type === 'title') next.title = data.title || form.title
-      if (type === 'all' || type === 'description') next.description = data.description || form.description
-      if (type === 'all' || type === 'tags') next.tags = data.tags ? tagList(data.tags) : form.tags
-      if (type === 'all') next.pinterest_link = data.pinterest_link || form.pinterest_link
-      if (type === 'all' || type === 'image') {
-        next.image_url = data.image_b64 ? `data:image/jpeg;base64,${data.image_b64}` : (data.generated_image_url || data.image_url || form.image_url)
-      }
-
-      setForm(next)
-      await updatePin(pinId, { ...next, generated_image_url: next.image_url })
-      toast.success(`${type === 'all' ? 'Pin' : type} regenerated`)
+  const recommendTitleDescription = async () => {
+    if (!pin) return
+    setBusy('title-description')
+    try {
+      const productId = pin.product_id || pin.product?.id
+      const extraInstruction = [
+        instruction,
+        'Recommend and rewrite only the Pinterest title and description using the AI text model configured in Settings. Keep title under 100 characters and description under 800 characters. Keep existing image and tags unchanged.',
+      ].filter(Boolean).join('\n')
+      const { data } = await generateText(productId, extraInstruction)
+      await applyGeneratedText('title-description', data, 'AI title and description recommended')
     } catch (error) {
       toast.error(errorMessage(error))
     } finally {
@@ -275,6 +297,25 @@ function Review() {
             ) : (
               <p className="text-sm text-slate-400">Enter a social media ID and click "Get Recommendation"</p>
             )}
+          </div>
+
+          {/* AI Title + Description Recommendation */}
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <div>
+                <p className="text-sm font-bold text-emerald-900">AI Title + Description Recommendation</p>
+                <p className="mt-1 text-xs text-emerald-700">Uses the text model from Settings. Keeps tags and image unchanged.</p>
+              </div>
+              <button
+                type="button"
+                onClick={recommendTitleDescription}
+                disabled={busy === 'title-description'}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+              >
+                {busy === 'title-description' ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                Recommend
+              </button>
+            </div>
           </div>
 
           {/* Title */}
