@@ -10,6 +10,7 @@ from routers.settings import get_settings_row
 import base64
 import httpx
 import json
+import re
 
 router = APIRouter(prefix="/pins", tags=["pins"])
 
@@ -122,6 +123,8 @@ async def schedule_pin(pin_id: int, body: ScheduleRequest, session: Session = De
         raise HTTPException(404, "Pin not found")
     if not pin.generated_image_url:
         raise HTTPException(400, "Pin has no image. Generate image first.")
+    if not re.fullmatch(r"[0-9a-fA-F-]{32,36}", (body.social_media_id or "").strip()):
+        raise HTTPException(400, "Social media ID must be the PostFast Pinterest account ID from Settings, not a label.")
 
     row = get_settings_row(session)
     if not row.postfast_api_key:
@@ -141,6 +144,8 @@ async def schedule_pin(pin_id: int, body: ScheduleRequest, session: Session = De
     else:
         raise HTTPException(400, "Pin has no valid image URL. Paste or upload a product image first.")
 
+    board_id = await _resolve_board_id(client, body.social_media_id, body.board_id)
+
     try:
         media_key = await client.upload_image(b64)
         post = await client.create_post(
@@ -149,7 +154,7 @@ async def schedule_pin(pin_id: int, body: ScheduleRequest, session: Session = De
             title=pin.title or "",
             description=pin.description or "",
             tags=json.loads(pin.tags or "[]"),
-            board_id=body.board_id,
+            board_id=board_id,
             pinterest_link=pin.pinterest_link or "",
             scheduled_at=body.scheduled_at,
             draft=body.draft,
@@ -160,7 +165,7 @@ async def schedule_pin(pin_id: int, body: ScheduleRequest, session: Session = De
         entry = ScheduleEntry(
             pin_draft_id=pin_id,
             social_media_id=body.social_media_id,
-            board_id=body.board_id,
+            board_id=board_id,
             scheduled_at=body.scheduled_at,
             status="failed",
             error_message=str(e),
@@ -179,7 +184,7 @@ async def schedule_pin(pin_id: int, body: ScheduleRequest, session: Session = De
         pin_draft_id=pin_id,
         postfast_post_id=str(postfast_id),
         social_media_id=body.social_media_id,
-        board_id=body.board_id,
+        board_id=board_id,
         scheduled_at=body.scheduled_at,
         status="draft" if body.draft else "scheduled",
     )
@@ -271,6 +276,24 @@ def _local_upload_to_b64(url: str) -> str:
     if not path.exists() or not path.is_file():
         raise HTTPException(400, "Uploaded image file not found.")
     return base64.b64encode(path.read_bytes()).decode()
+
+
+async def _resolve_board_id(client, social_media_id: str, board_value: str) -> str:
+    value = (board_value or "").strip()
+    if not value:
+        raise HTTPException(400, "Board ID is required")
+    if re.fullmatch(r"\d{8,}", value):
+        return value
+
+    boards = await client.get_boards(social_media_id)
+    normalized_value = value.lower().lstrip("#").strip()
+    for board in boards:
+        board_id = str(board.get("boardId") or board.get("id") or board.get("board_id") or "")
+        board_name = str(board.get("name") or board.get("title") or board.get("boardName") or "")
+        if value == board_id or normalized_value == board_name.lower().lstrip("#").strip():
+            return board_id
+
+    raise HTTPException(400, "Board not found. Select a synced Pinterest board instead of typing a label.")
 
 
 def _get_product_url(session: Session, product_id: int) -> Optional[str]:

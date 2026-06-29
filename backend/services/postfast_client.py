@@ -96,7 +96,11 @@ class PostFastClient:
 
         async with self._client() as c:
             r = await c.post("/social-posts", json=body)
-            r.raise_for_status()
+            try:
+                r.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                detail = exc.response.text[:1000]
+                raise RuntimeError(f"PostFast create_post failed {exc.response.status_code}: {detail}") from exc
             return r.json()
 
     async def get_posts(self, limit: int = 50) -> list:
