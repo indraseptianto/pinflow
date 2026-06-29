@@ -139,10 +139,10 @@ async def schedule_pin(pin_id: int, body: ScheduleRequest, session: Session = De
         raise HTTPException(400, "Pin has no valid image URL. Paste a product image URL first.")
 
     try:
-        media_id = await client.upload_image(b64)
+        media_key = await client.upload_image(b64)
         post = await client.create_post(
             social_media_id=body.social_media_id,
-            media_id=media_id,
+            media_key=media_key,
             title=pin.title or "",
             description=pin.description or "",
             tags=json.loads(pin.tags or "[]"),
