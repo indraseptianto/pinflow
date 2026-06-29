@@ -33,6 +33,7 @@ function Home() {
   useEffect(() => {
     getStylePresets().then(({ data }) => setStyles(data.styles || [])).catch(() => {})
     loadPostfastStatus({ silent: true })
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const summarizePostfastAccounts = (accounts) => {
