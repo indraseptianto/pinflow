@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { AlertTriangle, ArrowRight, CheckCircle2, Edit3, Loader2, RefreshCcw, Sparkles } from 'lucide-react'
-import { createManualProduct, createPin, generateVariants, getSettings, getStylePresets, parseProduct, syncAccounts, syncBoards, updateProductImages, updateSettings } from '../lib/api'
+import { AlertTriangle, ArrowRight, CheckCircle2, Edit3, Loader2, RefreshCcw, Sparkles, Upload } from 'lucide-react'
+import { createManualProduct, createPin, generateVariants, getSettings, getStylePresets, parseProduct, syncAccounts, syncBoards, updateProductImages, updateSettings, uploadProductImage } from '../lib/api'
 
 const errorMessage = (error) => error.response?.data?.detail || error.message
 const formatTime = (date) => date ? new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit' }).format(date) : ''
@@ -24,6 +24,7 @@ function Home() {
   const [manualImages, setManualImages] = useState('')
   const [productImagesInput, setProductImagesInput] = useState('')
   const [savingImages, setSavingImages] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [postfastStatus, setPostfastStatus] = useState({ loading: true, accounts: [], error: '', hasKey: false, lastSynced: null })
   const [boardStatus, setBoardStatus] = useState({ loading: false, boards: [], error: '', defaultBoardId: '', defaultSocialMediaId: '', lastSynced: null })
   const [syncingPostfast, setSyncingPostfast] = useState(false)
@@ -213,6 +214,25 @@ function Home() {
       toast.error(errorMessage(error))
     } finally {
       setSavingImages(false)
+    }
+  }
+
+  const handleUploadProductImage = async (event) => {
+    if (!product) return
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) return toast.error('Upload image file only')
+    setUploadingImage(true)
+    try {
+      const { data } = await uploadProductImage(product.id, file)
+      setProduct(data.product)
+      setProductImagesInput((data.product.original_images || []).join(', '))
+      toast.success('Local image uploaded')
+    } catch (error) {
+      toast.error(errorMessage(error))
+    } finally {
+      setUploadingImage(false)
     }
   }
 
@@ -438,20 +458,26 @@ function Home() {
               {(product.original_images || []).length === 0 && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                   <p className="font-black">Etsy blocked image scrape.</p>
-                  <p className="mt-1">Paste product image URL below. AI will only generate title, tags, and description; PinFlow will use this original product image.</p>
+                  <p className="mt-1">Upload a local image or paste product image URL below. AI will only generate title, tags, and description; PinFlow will use this original product image.</p>
                 </div>
               )}
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Product image URL</label>
+              <div className="space-y-3">
+                <label className="text-sm font-bold text-slate-700">Product image</label>
+                <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-5 text-center transition hover:border-[#E60023] hover:bg-red-50">
+                  {uploadingImage ? <Loader2 size={22} className="animate-spin text-[#E60023]" /> : <Upload size={22} className="text-[#E60023]" />}
+                  <span className="text-sm font-bold text-slate-800">{uploadingImage ? 'Uploading local image...' : 'Upload image from computer'}</span>
+                  <span className="text-xs text-slate-500">JPG, PNG, WEBP, GIF. Max 8MB. Uploaded image will be used for generated pins.</span>
+                  <input type="file" accept="image/*" onChange={handleUploadProductImage} disabled={uploadingImage} className="hidden" />
+                </label>
                 <div className="flex gap-2">
                   <input
                     value={productImagesInput}
                     onChange={(event) => setProductImagesInput(event.target.value)}
-                    placeholder="https://...jpg (comma separated if multiple)"
+                    placeholder="or paste https://...jpg (comma separated if multiple)"
                     className="min-h-11 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none transition focus:border-[#E60023] focus:bg-white focus:ring-4 focus:ring-red-100"
                   />
                   <button onClick={handleSaveProductImages} disabled={savingImages} className="rounded-2xl bg-slate-950 px-4 text-sm font-bold text-white disabled:opacity-60">
-                    {savingImages ? 'Saving...' : 'Save'}
+                    {savingImages ? 'Saving...' : 'Save URL'}
                   </button>
                 </div>
               </div>

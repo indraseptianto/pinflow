@@ -1,12 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlmodel import Session, select
 from database import get_session
 from models import Product, AppSettings
 from pydantic import BaseModel
 from typing import Optional
+from pathlib import Path
+from uuid import uuid4
 import json
 
 router = APIRouter(prefix="/products", tags=["products"])
+
+UPLOAD_DIR = Path('/app/data/uploads')
+ALLOWED_IMAGE_TYPES = {'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif'}
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
 
 class ParseRequest(BaseModel):
@@ -103,6 +109,36 @@ def update_product_images(product_id: int, body: UpdateImagesRequest, session: S
     session.commit()
     session.refresh(product)
     return {"product": _product_to_dict(product)}
+
+
+@router.post("/{product_id}/upload-image")
+async def upload_product_image(product_id: int, image: UploadFile = File(...), session: Session = Depends(get_session)):
+    product = session.get(Product, product_id)
+    if not product:
+        raise HTTPException(404, "Product not found")
+
+    content_type = (image.content_type or "").lower()
+    if content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(400, "Only JPG, PNG, WEBP, or GIF images are allowed")
+
+    content = await image.read()
+    if not content:
+        raise HTTPException(400, "Uploaded image is empty")
+    if len(content) > MAX_IMAGE_BYTES:
+        raise HTTPException(400, "Image too large. Max 8MB")
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"product-{product_id}-{uuid4().hex}{ALLOWED_IMAGE_TYPES[content_type]}"
+    path = UPLOAD_DIR / filename
+    path.write_bytes(content)
+
+    image_url = f"/api/uploads/{filename}"
+    images = json.loads(product.original_images or "[]")
+    product.original_images = json.dumps([image_url, *[url for url in images if url != image_url]])
+    session.add(product)
+    session.commit()
+    session.refresh(product)
+    return {"product": _product_to_dict(product), "image_url": image_url}
 
 
 @router.get("/{product_id}")

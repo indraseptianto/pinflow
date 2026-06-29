@@ -5,6 +5,7 @@ from models import PinDraft, Product, ScheduleEntry
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
+from pathlib import Path
 from routers.settings import get_settings_row
 import base64
 import httpx
@@ -133,10 +134,12 @@ async def schedule_pin(pin_id: int, body: ScheduleRequest, session: Session = De
     img_url = pin.generated_image_url or ""
     if img_url.startswith("data:image"):
         b64 = img_url.split(",", 1)[1]
+    elif img_url.startswith("/api/uploads/") or img_url.startswith("/uploads/"):
+        b64 = _local_upload_to_b64(img_url)
     elif img_url.startswith("http://") or img_url.startswith("https://"):
         b64 = await _remote_image_to_b64(img_url)
     else:
-        raise HTTPException(400, "Pin has no valid image URL. Paste a product image URL first.")
+        raise HTTPException(400, "Pin has no valid image URL. Paste or upload a product image first.")
 
     try:
         media_key = await client.upload_image(b64)
@@ -258,6 +261,16 @@ async def _remote_image_to_b64(url: str) -> str:
         if not content_type.startswith("image/"):
             raise HTTPException(400, "Image URL did not return an image file.")
         return base64.b64encode(response.content).decode()
+
+
+def _local_upload_to_b64(url: str) -> str:
+    filename = url.rsplit("/", 1)[-1]
+    if not filename or "/" in filename or ".." in filename:
+        raise HTTPException(400, "Invalid uploaded image path.")
+    path = Path('/app/data/uploads') / filename
+    if not path.exists() or not path.is_file():
+        raise HTTPException(400, "Uploaded image file not found.")
+    return base64.b64encode(path.read_bytes()).decode()
 
 
 def _get_product_url(session: Session, product_id: int) -> Optional[str]:
