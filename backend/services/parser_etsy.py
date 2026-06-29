@@ -1,6 +1,7 @@
 import httpx
 from bs4 import BeautifulSoup
 from typing import Optional
+from urllib.parse import urlparse, unquote
 import re
 import json
 
@@ -13,10 +14,16 @@ ETSY_HEADERS = {
 
 
 async def parse_etsy(url: str) -> dict:
-    async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
-        r = await client.get(url, headers=ETSY_HEADERS)
-        r.raise_for_status()
-        html = r.text
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
+            r = await client.get(url, headers=ETSY_HEADERS)
+            r.raise_for_status()
+            html = r.text
+    except httpx.HTTPStatusError as exc:
+        # ponytail: Etsy DataDome blocks VPS traffic; upgrade path is official Etsy API key or browser-render worker.
+        if exc.response.status_code == 403:
+            return _parse_from_url(url)
+        raise
 
     soup = BeautifulSoup(html, "lxml")
 
@@ -27,7 +34,8 @@ async def parse_etsy(url: str) -> dict:
         return result
 
     # Fallback to Open Graph + meta
-    return _parse_og(soup, url)
+    result = _parse_og(soup, url)
+    return result if result.get("title") else _parse_from_url(url)
 
 
 def _parse_json_ld(soup: BeautifulSoup) -> Optional[dict]:
@@ -82,6 +90,21 @@ def _enrich_from_html(soup: BeautifulSoup, data: dict) -> dict:
             data["original_images"] = imgs[:5]
 
     return data
+
+
+def _parse_from_url(url: str) -> dict:
+    path = unquote(urlparse(url).path)
+    match = re.search(r"/listing/\d+/([^/?#]+)", path)
+    slug = match.group(1) if match else "etsy-product"
+    title = re.sub(r"[-_]+", " ", slug).strip().title()
+    return {
+        "title": title or "Etsy Product",
+        "description_raw": f"Imported from Etsy listing: {url}",
+        "original_images": [],
+        "price": None,
+        "shop_name": None,
+        "source_marketplace": "etsy",
+    }
 
 
 def _parse_og(soup: BeautifulSoup, url: str) -> dict:
