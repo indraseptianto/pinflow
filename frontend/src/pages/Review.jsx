@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Image, Loader2, RefreshCw, Send, Sparkles, Type, TrendingUp, LayoutGrid } from 'lucide-react'
-import { generateAll, generateImage, generateText, getBoardRecommendation, getPin, getSEOScore, getSettings, schedulePin, updatePin } from '../lib/api'
+import { generateAll, generateImage, generateText, getBoardRecommendation, getPin, getSEOScore, getSettings, schedulePin, syncAccounts, syncBoards, updatePin } from '../lib/api'
 
 const errorMessage = (error) => error.response?.data?.detail || error.message
 const tagList = (tags) => (Array.isArray(tags) ? tags : String(tags || '').split(',').map((tag) => tag.trim()).filter(Boolean))
+const accountLabel = (account) => account.displayName || account.platformUsername || account.username || account.name || account.id || 'Pinterest account'
+const boardLabel = (board) => board.name || board.title || board.boardName || board.boardId || board.id || 'Pinterest board'
+const boardId = (board) => board.boardId || board.id || board.board_id || ''
 
 function Review() {
   const { pinId } = useParams()
@@ -22,9 +25,11 @@ function Review() {
   const [seoLoading, setSeoLoading] = useState(false)
 
   // Board Recommendation
+  const [accounts, setAccounts] = useState([])
   const [boards, setBoards] = useState([])
   const [recommendedBoard, setRecommendedBoard] = useState(null)
   const [recLoading, setRecLoading] = useState(false)
+  const [scheduleMetaLoading, setScheduleMetaLoading] = useState(false)
 
   // Schedule form
   const [schedule, setSchedule] = useState({ social_media_id: '', board_id: '', scheduled_at: '' })
@@ -45,11 +50,14 @@ function Review() {
         if (data.social_media_id) setSchedule(s => ({ ...s, social_media_id: data.social_media_id }))
         if (data.board_id) setSchedule(s => ({ ...s, board_id: data.board_id }))
         const { data: settings } = await getSettings()
+        const defaultSocialId = data.social_media_id || settings.default_social_media_id || ''
+        const defaultBoardId = data.board_id || settings.default_board_id || ''
         setSchedule(s => ({
           ...s,
-          social_media_id: data.social_media_id || settings.default_social_media_id || s.social_media_id,
-          board_id: data.board_id || settings.default_board_id || s.board_id,
+          social_media_id: defaultSocialId || s.social_media_id,
+          board_id: defaultBoardId || s.board_id,
         }))
+        await loadScheduleOptions(defaultSocialId, defaultBoardId)
       } catch (error) {
         toast.error(errorMessage(error))
       } finally {
@@ -58,6 +66,47 @@ function Review() {
     }
     loadPin()
   }, [pinId])
+
+  const loadScheduleOptions = async (socialMediaId = '', fallbackBoardId = '') => {
+    setScheduleMetaLoading(true)
+    try {
+      const { data: accountData } = await syncAccounts()
+      const accountList = accountData.accounts || []
+      setAccounts(accountList)
+      const activeSocialId = socialMediaId || accountList[0]?.id || ''
+      if (!activeSocialId) return
+
+      const { data: boardData } = await syncBoards(activeSocialId)
+      const boardList = boardData.boards || []
+      setBoards(boardList)
+      const activeBoardId = fallbackBoardId || boardId(boardList[0])
+      setSchedule((current) => ({
+        ...current,
+        social_media_id: current.social_media_id || activeSocialId,
+        board_id: current.board_id || activeBoardId || '',
+      }))
+    } catch (error) {
+      toast.error(errorMessage(error))
+    } finally {
+      setScheduleMetaLoading(false)
+    }
+  }
+
+  const handleScheduleAccountChange = async (socialMediaId) => {
+    setSchedule((current) => ({ ...current, social_media_id: socialMediaId, board_id: '' }))
+    if (!socialMediaId) return setBoards([])
+    setScheduleMetaLoading(true)
+    try {
+      const { data } = await syncBoards(socialMediaId)
+      const boardList = data.boards || []
+      setBoards(boardList)
+      setSchedule((current) => ({ ...current, board_id: boardId(boardList[0]) || '' }))
+    } catch (error) {
+      toast.error(errorMessage(error))
+    } finally {
+      setScheduleMetaLoading(false)
+    }
+  }
 
   const saveDraft = async (extra = {}) => {
     const merged = { ...form, ...extra }
@@ -198,6 +247,8 @@ function Review() {
 
   const submitSchedule = async (event) => {
     event.preventDefault()
+    if (!schedule.social_media_id) return toast.error('Select Pinterest account first')
+    if (!schedule.board_id) return toast.error('Select Pinterest board first')
     setBusy('schedule')
     try {
       await saveDraft()
@@ -290,7 +341,7 @@ function Review() {
                 {boards.length > 0 && (
                   <select value={schedule.board_id} onChange={e => setSchedule(s => ({ ...s, board_id: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
                     <option value="">-- Select board --</option>
-                    {boards.map(b => <option key={b.boardId} value={b.boardId}>{b.name}</option>)}
+                    {boards.map(b => <option key={boardId(b)} value={boardId(b)}>{boardLabel(b)}</option>)}
                   </select>
                 )}
               </div>
@@ -376,10 +427,25 @@ function Review() {
 
       {/* Schedule Form */}
       <form onSubmit={submitSchedule} className="grid gap-4 rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-200 md:grid-cols-4">
-        <input value={schedule.social_media_id} onChange={(e) => setSchedule({ ...schedule, social_media_id: e.target.value })} placeholder="Social media ID *" className="rounded-2xl border border-slate-200 px-4 py-3" />
-        <input value={schedule.board_id} onChange={(e) => setSchedule({ ...schedule, board_id: e.target.value })} placeholder="Board ID" className="rounded-2xl border border-slate-200 px-4 py-3" />
-        <input type="datetime-local" value={schedule.scheduled_at} onChange={(e) => setSchedule({ ...schedule, scheduled_at: e.target.value })} className="rounded-2xl border border-slate-200 px-4 py-3" />
-        <button className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white"><Send size={16} /> Schedule</button>
+        <label className="space-y-2">
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Pinterest account</span>
+          <select value={schedule.social_media_id} onChange={(e) => handleScheduleAccountChange(e.target.value)} disabled={scheduleMetaLoading || accounts.length === 0} className="min-h-12 w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-60">
+            <option value="">{scheduleMetaLoading ? 'Loading accounts...' : 'Select Pinterest account'}</option>
+            {accounts.map((account) => <option key={account.id} value={account.id}>{accountLabel(account)}</option>)}
+          </select>
+        </label>
+        <label className="space-y-2">
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Pinterest board</span>
+          <select value={schedule.board_id} onChange={(e) => setSchedule({ ...schedule, board_id: e.target.value })} disabled={scheduleMetaLoading || boards.length === 0} className="min-h-12 w-full rounded-2xl border border-slate-200 px-4 py-3 disabled:opacity-60">
+            <option value="">{scheduleMetaLoading ? 'Loading boards...' : 'Select board'}</option>
+            {boards.map((board) => <option key={boardId(board)} value={boardId(board)}>{boardLabel(board)}</option>)}
+          </select>
+        </label>
+        <label className="space-y-2">
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Schedule time</span>
+          <input type="datetime-local" value={schedule.scheduled_at} onChange={(e) => setSchedule({ ...schedule, scheduled_at: e.target.value })} className="min-h-12 w-full rounded-2xl border border-slate-200 px-4 py-3" />
+        </label>
+        <button disabled={busy === 'schedule' || !schedule.social_media_id || !schedule.board_id} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white disabled:opacity-60"><Send size={16} /> {busy === 'schedule' ? 'Scheduling...' : 'Schedule'}</button>
       </form>
     </div>
   )
