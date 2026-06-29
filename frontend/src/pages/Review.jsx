@@ -4,7 +4,12 @@ import toast from 'react-hot-toast'
 import { Image, Loader2, RefreshCw, Send, Sparkles, Type, TrendingUp, LayoutGrid } from 'lucide-react'
 import { generateAll, generateImage, generateText, getBoardRecommendation, getPin, getSEOScore, getSettings, schedulePin, syncAccounts, syncBoards, updatePin } from '../lib/api'
 
-const errorMessage = (error) => error.response?.data?.detail || error.message
+const errorMessage = (error) => {
+  const detail = error.response?.data?.detail || error.response?.data?.error || error.message
+  if (Array.isArray(detail)) return detail.map((item) => item.msg || JSON.stringify(item)).join(', ')
+  if (detail && typeof detail === 'object') return detail.msg || JSON.stringify(detail)
+  return detail || 'Request failed'
+}
 const tagList = (tags) => (Array.isArray(tags) ? tags : String(tags || '').split(',').map((tag) => tag.trim()).filter(Boolean))
 const accountLabel = (account) => account.displayName || account.platformUsername || account.username || account.name || account.id || 'Pinterest account'
 const boardLabel = (board) => board.name || board.title || board.boardName || board.boardId || board.id || 'Pinterest board'

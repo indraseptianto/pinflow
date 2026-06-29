@@ -4,7 +4,12 @@ import dayjs from 'dayjs'
 import { ArrowDownAZ, ArrowUpAZ, CalendarClock, Loader2, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import { cancelPin, deletePin, getSettings, listPins, schedulePin, syncPinStatus } from '../lib/api'
 
-const errorMessage = (error) => error.response?.data?.detail || error.message
+const errorMessage = (error) => {
+  const detail = error.response?.data?.detail || error.response?.data?.error || error.message
+  if (Array.isArray(detail)) return detail.map((item) => item.msg || JSON.stringify(item)).join(', ')
+  if (detail && typeof detail === 'object') return detail.msg || JSON.stringify(detail)
+  return detail || 'Request failed'
+}
 const badgeColors = {
   draft: 'bg-gray-100 text-gray-700',
   reviewed: 'bg-blue-100 text-blue-700',

@@ -3,7 +3,12 @@ import toast from 'react-hot-toast'
 import { Eye, EyeOff, RefreshCcw, Save, TestTube2 } from 'lucide-react'
 import { getSettings, syncAccounts, syncBoards, testAI, updateSettings } from '../lib/api'
 
-const errorMessage = (error) => error.response?.data?.detail || error.message
+const errorMessage = (error) => {
+  const detail = error.response?.data?.detail || error.response?.data?.error || error.message
+  if (Array.isArray(detail)) return detail.map((item) => item.msg || JSON.stringify(item)).join(', ')
+  if (detail && typeof detail === 'object') return detail.msg || JSON.stringify(detail)
+  return detail || 'Request failed'
+}
 const accountLabel = (account) => account.displayName || account.platformUsername || account.username || account.name || account.id || 'Pinterest account'
 const boardLabel = (board) => board.name || board.title || board.boardName || board.boardId || board.id || 'Pinterest board'
 const boardId = (board) => board.boardId || board.id || board.board_id || ''

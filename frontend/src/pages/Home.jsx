@@ -4,7 +4,12 @@ import toast from 'react-hot-toast'
 import { AlertTriangle, ArrowRight, CheckCircle2, Edit3, Loader2, RefreshCcw, Sparkles, Upload } from 'lucide-react'
 import { createManualProduct, createPin, generateVariants, getSettings, getStylePresets, parseProduct, syncAccounts, syncBoards, updateProductImages, updateSettings, uploadProductImage } from '../lib/api'
 
-const errorMessage = (error) => error.response?.data?.detail || error.message
+const errorMessage = (error) => {
+  const detail = error.response?.data?.detail || error.response?.data?.error || error.message
+  if (Array.isArray(detail)) return detail.map((item) => item.msg || JSON.stringify(item)).join(', ')
+  if (detail && typeof detail === 'object') return detail.msg || JSON.stringify(detail)
+  return detail || 'Request failed'
+}
 const formatTime = (date) => date ? new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit' }).format(date) : ''
 const sourceLabel = (product) => product?.shop_name || (product?.source_marketplace === 'manual' ? 'Manual entry' : 'Etsy listing')
 
