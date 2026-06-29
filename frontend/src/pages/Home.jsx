@@ -219,24 +219,31 @@ function Home() {
   const handleGenerate = async () => {
     if (!product) return
 
-    if ((product.original_images || []).length === 0) {
-      toast.error('Paste product image URL first. AI will only generate title, tags, and description.')
-      return
-    }
-
     setGenerating(true)
     try {
-      const { data } = await generateVariants(product.id, extraInstruction, stylePreset, 3)
+      let activeProduct = product
+      const typedImages = productImagesInput.split(',').map((value) => value.trim()).filter(Boolean)
+      if ((activeProduct.original_images || []).length === 0 && typedImages.length > 0) {
+        const { data: saved } = await updateProductImages(activeProduct.id, typedImages)
+        activeProduct = saved.product
+        setProduct(saved.product)
+        setProductImagesInput((saved.product.original_images || []).join(', '))
+      }
+      if ((activeProduct.original_images || []).length === 0) {
+        toast.error('No product image yet. Generating text-only variants; add image in Review before scheduling.')
+      }
+
+      const { data } = await generateVariants(activeProduct.id, extraInstruction, stylePreset, 3)
       const created = []
       for (const variant of data.variants || []) {
         const { data: pin } = await createPin({
-          product_id: product.id,
+          product_id: activeProduct.id,
           title: variant.title,
           description: variant.description,
           tags: variant.tags || [],
           image_b64: variant.image_b64,
           generated_image_url: variant.image_url,
-          pinterest_link: variant.pinterest_link || product.source_url,
+          pinterest_link: variant.pinterest_link || activeProduct.source_url,
           model_used_text: variant.model_used_text,
           model_used_image: variant.model_used_image,
         })

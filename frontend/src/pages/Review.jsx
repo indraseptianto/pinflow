@@ -60,7 +60,8 @@ function Review() {
   }, [pinId])
 
   const saveDraft = async (extra = {}) => {
-    const body = { ...form, ...extra, tags: form.tags, generated_image_url: form.image_url }
+    const merged = { ...form, ...extra }
+    const body = { ...merged, tags: merged.tags || form.tags, generated_image_url: merged.generated_image_url || merged.image_url || form.image_url }
     const { data } = await updatePin(pinId, body)
     setPin(data)
     return data
@@ -139,6 +140,20 @@ function Review() {
     try {
       await saveDraft({ status: 'ready' })
       toast.success('Pin approved and ready to schedule')
+    } catch (error) {
+      toast.error(errorMessage(error))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const handleSaveImage = async () => {
+    if (!form.image_url.trim()) return toast.error('Paste product image URL first')
+    setBusy('image-save')
+    try {
+      const data = await saveDraft({ generated_image_url: form.image_url.trim() })
+      setForm((current) => ({ ...current, image_url: data.generated_image_url || current.image_url }))
+      toast.success('Image URL saved')
     } catch (error) {
       toast.error(errorMessage(error))
     } finally {
@@ -287,6 +302,16 @@ function Review() {
           <label className="block space-y-2">
             <span className="text-sm font-semibold">Pinterest link</span>
             <input value={form.pinterest_link} onChange={(e) => setForm({ ...form, pinterest_link: e.target.value })} className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-[#E60023] focus:ring-4 focus:ring-red-100" />
+          </label>
+
+          {/* Image URL */}
+          <label className="block space-y-2">
+            <span className="text-sm font-semibold">Product image URL</span>
+            <div className="flex gap-2">
+              <input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://...jpg" className="min-h-12 flex-1 rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-[#E60023] focus:ring-4 focus:ring-red-100" />
+              <button type="button" onClick={handleSaveImage} disabled={busy === 'image-save'} className="rounded-2xl bg-slate-950 px-4 text-sm font-bold text-white disabled:opacity-60">{busy === 'image-save' ? 'Saving...' : 'Save'}</button>
+            </div>
+            {!form.image_url && <span className="text-xs font-semibold text-amber-600">Add image here before scheduling.</span>}
           </label>
 
           {/* Extra instruction */}
