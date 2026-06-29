@@ -119,8 +119,11 @@ async def board_recommendation(body: BoardRecRequest, session: Session = Depends
     if not product:
         raise HTTPException(404, "Product not found")
 
-    from services.postfast_client import get_pinterest_boards
-    boards = await get_pinterest_boards(row.postfast_api_key, body.social_media_id)
+    from services.postfast_client import PostFastClient
+    try:
+        boards = await PostFastClient(row.postfast_api_key).get_boards(body.social_media_id)
+    except Exception as e:
+        raise HTTPException(502, f"PostFast boards fetch failed: {str(e)}")
 
     from services.ai_text import recommend_board
     try:
