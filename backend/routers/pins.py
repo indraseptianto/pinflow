@@ -6,6 +6,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 from routers.settings import get_settings_row
+import base64
+import httpx
 import json
 
 router = APIRouter(prefix="/pins", tags=["pins"])
@@ -127,12 +129,14 @@ async def schedule_pin(pin_id: int, body: ScheduleRequest, session: Session = De
     from services.postfast_client import PostFastClient
     client = PostFastClient(row.postfast_api_key)
 
-    # Extract base64 from data URL if needed
+    # Extract base64 from data URL, or download remote image URL and convert to base64.
     img_url = pin.generated_image_url or ""
     if img_url.startswith("data:image"):
         b64 = img_url.split(",", 1)[1]
+    elif img_url.startswith("http://") or img_url.startswith("https://"):
+        b64 = await _remote_image_to_b64(img_url)
     else:
-        raise HTTPException(400, "Image must be generated/uploaded first (base64 required for upload).")
+        raise HTTPException(400, "Pin has no valid image URL. Paste a product image URL first.")
 
     try:
         media_id = await client.upload_image(b64)
@@ -215,6 +219,16 @@ async def cancel_pin(pin_id: int, session: Session = Depends(get_session)):
         session.add(pin)
         session.commit()
     return {"ok": ok}
+
+
+async def _remote_image_to_b64(url: str) -> str:
+    async with httpx.AsyncClient(timeout=45, follow_redirects=True) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        content_type = response.headers.get("content-type", "")
+        if not content_type.startswith("image/"):
+            raise HTTPException(400, "Image URL did not return an image file.")
+        return base64.b64encode(response.content).decode()
 
 
 def _get_product_url(session: Session, product_id: int) -> Optional[str]:
