@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { AlertTriangle, ArrowRight, CheckCircle2, Edit3, Loader2, RefreshCcw, Sparkles } from 'lucide-react'
-import { createManualProduct, createPin, generateVariants, getSettings, getStylePresets, parseProduct, syncAccounts, syncBoards, updateSettings } from '../lib/api'
+import { createManualProduct, createPin, generateVariants, getSettings, getStylePresets, parseProduct, syncAccounts, syncBoards, updateProductImages, updateSettings } from '../lib/api'
 
 const errorMessage = (error) => error.response?.data?.detail || error.message
 const formatTime = (date) => date ? new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit' }).format(date) : ''
@@ -22,6 +22,8 @@ function Home() {
   const [manualMode, setManualMode] = useState(false)
   const [manual, setManual] = useState({ title: '', description_raw: '', price: '', shop_name: '', source_url: '' })
   const [manualImages, setManualImages] = useState('')
+  const [productImagesInput, setProductImagesInput] = useState('')
+  const [savingImages, setSavingImages] = useState(false)
   const [postfastStatus, setPostfastStatus] = useState({ loading: true, accounts: [], error: '', hasKey: false, lastSynced: null })
   const [boardStatus, setBoardStatus] = useState({ loading: false, boards: [], error: '', defaultBoardId: '', defaultSocialMediaId: '', lastSynced: null })
   const [syncingPostfast, setSyncingPostfast] = useState(false)
@@ -161,7 +163,12 @@ function Home() {
     try {
       const { data } = await parseProduct(url.trim())
       setProduct(data.product)
-      toast.success(data.cached ? 'Loaded cached product' : 'Product parsed')
+      setProductImagesInput((data.product.original_images || []).join(', '))
+      if ((data.product.original_images || []).length === 0) {
+        toast.error('Etsy blocked image scrape. Paste product image URL before generating.')
+      } else {
+        toast.success(data.cached ? 'Loaded cached product' : 'Product parsed')
+      }
     } catch (error) {
       toast.error(errorMessage(error))
     } finally {
@@ -184,6 +191,7 @@ function Home() {
         original_images: images,
       })
       setProduct(data.product)
+      setProductImagesInput((data.product.original_images || []).join(', '))
       toast.success('Manual product created')
     } catch (error) {
       toast.error(errorMessage(error))
@@ -192,8 +200,29 @@ function Home() {
     }
   }
 
+  const handleSaveProductImages = async () => {
+    if (!product) return
+    const images = productImagesInput.split(',').map((value) => value.trim()).filter(Boolean)
+    setSavingImages(true)
+    try {
+      const { data } = await updateProductImages(product.id, images)
+      setProduct(data.product)
+      setProductImagesInput((data.product.original_images || []).join(', '))
+      toast.success(images.length ? 'Product image saved' : 'Product image cleared')
+    } catch (error) {
+      toast.error(errorMessage(error))
+    } finally {
+      setSavingImages(false)
+    }
+  }
+
   const handleGenerate = async () => {
     if (!product) return
+
+    if ((product.original_images || []).length === 0) {
+      toast.error('Paste product image URL first. AI will only generate title, tags, and description.')
+      return
+    }
 
     setGenerating(true)
     try {
@@ -206,6 +235,7 @@ function Home() {
           description: variant.description,
           tags: variant.tags || [],
           image_b64: variant.image_b64,
+          generated_image_url: variant.image_url,
           pinterest_link: variant.pinterest_link || product.source_url,
           model_used_text: variant.model_used_text,
           model_used_image: variant.model_used_image,
@@ -398,6 +428,26 @@ function Home() {
                 <h2 className="mt-1 text-2xl font-black leading-tight tracking-tight">{product.title}</h2>
               </div>
               <p className="line-clamp-4 text-sm leading-6 text-slate-600">{product.description_raw}</p>
+              {(product.original_images || []).length === 0 && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  <p className="font-black">Etsy blocked image scrape.</p>
+                  <p className="mt-1">Paste product image URL below. AI will only generate title, tags, and description; PinFlow will use this original product image.</p>
+                </div>
+              )}
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">Product image URL</label>
+                <div className="flex gap-2">
+                  <input
+                    value={productImagesInput}
+                    onChange={(event) => setProductImagesInput(event.target.value)}
+                    placeholder="https://...jpg (comma separated if multiple)"
+                    className="min-h-11 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none transition focus:border-[#E60023] focus:bg-white focus:ring-4 focus:ring-red-100"
+                  />
+                  <button onClick={handleSaveProductImages} disabled={savingImages} className="rounded-2xl bg-slate-950 px-4 text-sm font-bold text-white disabled:opacity-60">
+                    {savingImages ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </div>
               <div className="flex items-center justify-between border-t border-slate-100 pt-4">
                 <span className="text-xl font-bold">{product.price || 'Price unavailable'}</span>
                 <button onClick={handleGenerate} disabled={generating} className="inline-flex items-center gap-2 rounded-full bg-[#E60023] px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-70">

@@ -139,30 +139,14 @@ async def board_recommendation(body: BoardRecRequest, session: Session = Depends
 
 @router.post("/generate/image")
 async def generate_image(body: GenerateImageRequest, session: Session = Depends(get_session)):
-    row = get_settings_row(session)
-    _require_ai(row)
-
     product = session.get(Product, body.product_id)
     if not product:
         raise HTTPException(404, "Product not found")
 
     images = json.loads(product.original_images or "[]")
-    from services.ai_image import generate_pin_image
-    from services.prompt_builder import build_image_prompt
-    try:
-        b64 = await generate_pin_image(
-            product_title=product.title,
-            product_description=product.description_raw,
-            product_image_url=images[0] if images else None,
-            endpoint=row.ai_router_endpoint,
-            api_key=row.ai_router_api_key,
-            model=row.ai_image_model,
-            extra_instruction=body.extra_instruction or "",
-            prompt_override=build_image_prompt(product.title, product.description_raw, body.style_preset, body.angle_instruction or "", body.extra_instruction or ""),
-        )
-        return {"ok": True, "image_b64": b64}
-    except Exception as e:
-        raise HTTPException(502, f"AI image generation failed: {str(e)}")
+    if images:
+        return {"ok": True, "image_url": images[0], "image_b64": None, "skipped_ai_image": True}
+    raise HTTPException(400, "No product image found. Paste/upload a product image first.")
 
 
 @router.post("/generate/all")
@@ -178,8 +162,7 @@ async def generate_all(body: GenerateAllRequest, session: Session = Depends(get_
 
     images = json.loads(product.original_images or "[]")
     from services.ai_text import generate_pin_text
-    from services.ai_image import generate_pin_image
-    from services.prompt_builder import build_image_prompt, build_text_instruction, VARIANT_ANGLES
+    from services.prompt_builder import build_text_instruction, VARIANT_ANGLES
 
     angle_instruction = VARIANT_ANGLES[0]["instruction"]
     text_task = generate_pin_text(
@@ -193,19 +176,10 @@ async def generate_all(body: GenerateAllRequest, session: Session = Depends(get_
         model=row.ai_text_model,
         extra_instruction=build_text_instruction(body.style_preset, angle_instruction, body.extra_instruction or ""),
     )
-    image_task = generate_pin_image(
-        product_title=product.title,
-        product_description=product.description_raw,
-        product_image_url=images[0] if images else None,
-        endpoint=row.ai_router_endpoint,
-        api_key=row.ai_router_api_key,
-        model=row.ai_image_model,
-        extra_instruction=body.extra_instruction or "",
-        prompt_override=build_image_prompt(product.title, product.description_raw, body.style_preset, angle_instruction, body.extra_instruction or ""),
-    )
+    image_url = images[0] if images else None
 
     try:
-        text_result, image_b64 = await asyncio.gather(text_task, image_task)
+        text_result = await text_task
     except Exception as e:
         raise HTTPException(502, f"AI generation failed: {str(e)}")
 
@@ -214,10 +188,11 @@ async def generate_all(body: GenerateAllRequest, session: Session = Depends(get_
         "title": text_result["title"],
         "description": text_result["description"],
         "tags": text_result["tags"],
-        "image_b64": image_b64,
+        "image_b64": None,
+        "image_url": image_url,
         "pinterest_link": product.source_url,
         "model_used_text": row.ai_text_model,
-        "model_used_image": row.ai_image_model,
+        "model_used_image": None,
     }
 
 
@@ -233,8 +208,7 @@ async def generate_variants(body: GenerateVariantsRequest, session: Session = De
         raise HTTPException(404, "Product not found")
 
     from services.ai_text import generate_pin_text
-    from services.ai_image import generate_pin_image
-    from services.prompt_builder import build_image_prompt, build_text_instruction, VARIANT_ANGLES
+    from services.prompt_builder import build_text_instruction, VARIANT_ANGLES
 
     images = json.loads(product.original_images or "[]")
     angles = VARIANT_ANGLES[: max(1, min(body.count, 3))]
@@ -251,26 +225,18 @@ async def generate_variants(body: GenerateVariantsRequest, session: Session = De
             model=row.ai_text_model,
             extra_instruction=build_text_instruction(body.style_preset, angle["instruction"], body.extra_instruction or ""),
         )
-        image_b64 = await generate_pin_image(
-            product_title=product.title,
-            product_description=product.description_raw,
-            product_image_url=images[0] if images else None,
-            endpoint=row.ai_router_endpoint,
-            api_key=row.ai_router_api_key,
-            model=row.ai_image_model,
-            extra_instruction=body.extra_instruction or "",
-            prompt_override=build_image_prompt(product.title, product.description_raw, body.style_preset, angle["instruction"], body.extra_instruction or ""),
-        )
+        image_url = images[0] if images else None
         return {
             "angle_key": angle["key"],
             "angle_label": angle["label"],
             "title": text["title"],
             "description": text["description"],
             "tags": text["tags"],
-            "image_b64": image_b64,
+            "image_b64": None,
+            "image_url": image_url,
             "pinterest_link": product.source_url,
             "model_used_text": row.ai_text_model,
-            "model_used_image": row.ai_image_model,
+            "model_used_image": None,
             "style_preset": body.style_preset,
         }
 

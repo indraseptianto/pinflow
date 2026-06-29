@@ -28,6 +28,10 @@ class CreateManualRequest(BaseModel):
     original_images: Optional[list] = []
 
 
+class UpdateImagesRequest(BaseModel):
+    original_images: list[str] = []
+
+
 @router.post("/parse")
 async def parse_product(body: ParseRequest, session: Session = Depends(get_session)):
     marketplace = detect_marketplace(body.url)
@@ -86,6 +90,19 @@ async def create_manual_product(body: CreateManualRequest, session: Session = De
 def list_products(session: Session = Depends(get_session)):
     products = session.exec(select(Product).order_by(Product.created_at.desc())).all()
     return [_product_to_dict(p) for p in products]
+
+
+@router.put("/{product_id}/images")
+def update_product_images(product_id: int, body: UpdateImagesRequest, session: Session = Depends(get_session)):
+    product = session.get(Product, product_id)
+    if not product:
+        raise HTTPException(404, "Product not found")
+    images = [url.strip() for url in body.original_images if isinstance(url, str) and url.strip()]
+    product.original_images = json.dumps(images)
+    session.add(product)
+    session.commit()
+    session.refresh(product)
+    return {"product": _product_to_dict(product)}
 
 
 @router.get("/{product_id}")

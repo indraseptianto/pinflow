@@ -6,6 +6,7 @@ const api = axios.create({ baseURL: BASE })
 
 export const parseProduct    = (url) => api.post('/products/parse', { url })
 export const listProducts    = () => api.get('/products')
+export const updateProductImages = (id, original_images) => api.put(`/products/${id}/images`, { original_images })
 
 export const getStylePresets = () => api.get('/ai/style-presets')
 export const generateAll     = (product_id, extra_instruction = '', style_preset = 'minimal-clean') =>
